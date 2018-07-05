@@ -70,7 +70,7 @@ def catcritter_infinite_infer_run():
         # captured ssd image info for training
         ssd_image_list = [];
 
-        class_labels = {0: 'buddy', 1: 'jade', 2: 'buddypluscritter', 3: 'nothing'}
+        class_labels = {0: 'background', 1: 'buddy', 2: 'jade', 3: 'lucy', 4: 'tim'}
 
         # This object detection model is implemented as single shot detector (ssd), since
         # the number of labels is small we create a dictionary that will help us convert
@@ -161,7 +161,7 @@ def catcritter_infinite_infer_run():
 
             image_saved = False;
 
-    # Get the detected objects and probabilities
+            # Get the detected objects and probabilities
             for obj in parsed_inference_results[ssd_model_type]:
                 if obj['prob'] > detection_threshold:
 
@@ -175,7 +175,15 @@ def catcritter_infinite_infer_run():
 
 
                     # if we found a cat, then save the image to a file and publish to IOT
-                    if obj['label'] == 8:
+                    if obj['label'] == 8 or obj['label'] == 15:
+                        # save the ssd image
+                        if not image_saved:
+                            frame_filename = "{}_{:03d}_{}_{:03d}".format(today, ssd_counter, 'cats', irand)
+                            frame_path = "/tmp/cats/train/" + frame_filename + '.jpg'
+                            cv2.imwrite(frame_path, frame_resize)
+                            ssd_counter += 1
+                            image_saved = True;
+
                         crop = frame[ymin:ymax,xmin:xmax].copy()
                         crop_resize = cv2.resize(crop, (class_input_height, class_input_width))
 
@@ -186,51 +194,45 @@ def catcritter_infinite_infer_run():
                         class_inference_results = class_model.parseResult(class_model_type,inferOutput)
                         top_k = class_inference_results[class_model_type][0:num_classes]
                         first = top_k[0]
-                        if first['prob'] > detection_threshold:
-                            if first['label'] < 4:
-                                #client.publish(topic=iot_topic, payload='found {}, saving file'.format(labels[first['label']]))
-                                path = "/tmp/cats/{}_{:03d}_{}_{:03d}.jpg".format(today, counter, class_labels[first['label']], irand)
-                                cv2.imwrite(path, crop)
-                                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
-                                counter += 1
-            
-                                msg = '{'
-                                prob_num = 0
-                                for kitty in top_k:
-                                    if prob_num == num_classes-1:
-                                        msg += '"{}": {:.2f}'.format(class_labels[kitty["label"]], kitty["prob"]*100)
-                                    else:
-                                        msg += '"{}": {:.2f},'.format(class_labels[kitty["label"]], kitty["prob"]*100)
-            
-                                prob_num += 1
-                                msg += "}"
+
+                        #client.publish(topic=iot_topic, payload='found {}, saving file'.format(labels[first['label']]))
+
+                        dir = "/tmp/cats/train/" + frame_filename
+                        if not os.path.isdir(dir):
+                            os.mkdir(dir)
+                            os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+
+                        the_label = class_labels[first['label']]
+                        the_class = first['label']
+
+                        if (obj['label'] == 15 and the_class < 3):
+                            the_label = 'person'
+                            the_class = 3
+
+                        path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
+                        cv2.imwrite(path, crop)
+                        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                        counter += 1
+
+                        msg = '{'
+                        prob_num = 0
+                        for kitty in top_k:
+                            if prob_num == num_classes-1:
+                                msg += '"{}": {:.2f}'.format(class_labels[kitty["label"]], kitty["prob"]*100)
+                            else:
+                                msg += '"{}": {:.2f},'.format(class_labels[kitty["label"]], kitty["prob"]*100)
+
+                        prob_num += 1
+                        msg += "}"
 
 
-                                # Send results to the cloud
-                                client.publish(topic=iot_topic, payload=json.dumps(msg))
+                        # Send results to the cloud
+                        #client.publish(topic=iot_topic, payload=json.dumps(msg))
 
-                                if not image_saved:
-                                    frame_filename = "{}_{:03d}_{}_{:03d}.jpg".format(today, ssd_counter, 'cats', irand)
-                                    frame_path = "/tmp/cats/train/{}".format(frame_filename)
-                                    cv2.imwrite(frame_path, frame_resize)
-                                    ssd_counter += 1
-                                    image_saved = True;
-
-                                # create ssd entry
-                                ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), first['label']+1]
-                                ssd_image_list.append(ssd_image_desc)
-
-                    elif obj['label'] == 15:
-                        if not image_saved:
-                            frame_filename = "{}_{:03d}_{}_{:03d}.jpg".format(today, ssd_counter, 'person', irand)
-                            frame_path = "/tmp/cats/train/{}".format(frame_filename)
-                            cv2.imwrite(frame_path, frame_resize)
-                            ssd_counter += 1
-                            image_saved = True;
-
-                        # create ssd entry for person
-                        ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), 5]
+                        # create ssd entry
+                        ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]
                         ssd_image_list.append(ssd_image_desc)
+
 
                     # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
                     # for more information about the cv2.rectangle method.

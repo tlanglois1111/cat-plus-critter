@@ -143,6 +143,7 @@ def catcritter_infinite_infer_run():
             ret, frame = awscam.getLastFrame()
             if not ret:
                 raise Exception('Failed to get frame from the stream')
+
             # Resize frame to the same size as the training set.
             frame_resize = cv2.resize(frame, (ssd_input_height, ssd_input_width))
             # Run the images through the inference engine and parse the results using
@@ -173,6 +174,10 @@ def catcritter_infinite_infer_run():
                            + int((obj['xmax'] - ssd_input_width/2) + ssd_input_width/2)
                     ymax = int(yscale * obj['ymax'])
 
+                    if xmin < 0:
+                        xmin = 0
+                    if ymin < 0:
+                        ymin = 0
 
                     # if we found a cat, then save the image to a file and publish to IOT
                     if obj['label'] == 8 or obj['label'] == 15:
@@ -195,39 +200,49 @@ def catcritter_infinite_infer_run():
                         top_k = class_inference_results[class_model_type][0:num_classes]
                         first = top_k[0]
 
-                        #client.publish(topic=iot_topic, payload='found {}, saving file'.format(labels[first['label']]))
+                        if first['prob'] > detection_threshold:
+                            #client.publish(topic=iot_topic, payload='found {}, saving file'.format(labels[first['label']]))
 
-                        dir = "/tmp/cats/train/" + frame_filename
-                        if not os.path.isdir(dir):
-                            os.mkdir(dir)
-                            os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+                            dir = "/tmp/cats/train/" + frame_filename
+                            if not os.path.isdir(dir):
+                                os.mkdir(dir)
+                                os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
-                        the_label = class_labels[first['label']]
-                        the_class = first['label']
+                            the_label = class_labels[first['label']]
+                            the_class = first['label']
 
-                        if (obj['label'] == 15 and the_class < 3):
-                            the_label = 'person'
-                            the_class = 3
+                            if (obj['label'] == 15 and the_class < 3):
+                                the_label = 'person'
+                                the_class = 3
 
-                        path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
-                        cv2.imwrite(path, crop)
-                        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
-                        counter += 1
+                            path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
+                            cv2.imwrite(path, crop)
+                            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                            counter += 1
 
-                        msg = '{'
-                        prob_num = 0
-                        for kitty in top_k:
-                            if prob_num == num_classes-1:
-                                msg += '"{}": {:.2f}'.format(class_labels[kitty["label"]], kitty["prob"]*100)
-                            else:
-                                msg += '"{}": {:.2f},'.format(class_labels[kitty["label"]], kitty["prob"]*100)
+                            msg = '{'
+                            prob_num = 0
+                            for kitty in top_k:
+                                if prob_num == num_classes-1:
+                                    msg += '"{}": {:.2f}'.format(class_labels[kitty["label"]], kitty["prob"]*100)
+                                else:
+                                    msg += '"{}": {:.2f},'.format(class_labels[kitty["label"]], kitty["prob"]*100)
 
-                        prob_num += 1
-                        msg += "}"
+                            prob_num += 1
+                            msg += "}"
 
 
-                        # Send results to the cloud
-                        #client.publish(topic=iot_topic, payload=json.dumps(msg))
+                            # Send results to the cloud
+                            #client.publish(topic=iot_topic, payload=json.dumps(msg))
+
+                        else:
+                            the_class = 0
+                            the_label = class_labels[the_class]
+
+                            path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
+                            cv2.imwrite(path, crop)
+                            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                            counter += 1
 
                         # create ssd entry
                         ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]

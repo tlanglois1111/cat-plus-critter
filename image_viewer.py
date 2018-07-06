@@ -23,6 +23,9 @@ class ViewerPanel(wx.Panel):
         self.csvFields = ['frame','xmin','xmax','ymin','ymax','class_id']
         self.tempCsvFile = NamedTemporaryFile(mode='w', delete=False, newline='')
 
+        self.startingRow = 0
+        self.rowNumber = 0
+
         # 20180706_215_cats_807,138,231,94,194,1
         self.frame = ''
         self.xmin = 0
@@ -105,7 +108,7 @@ class ViewerPanel(wx.Panel):
         dc.SelectObject(wx.NullBitmap)
 
         self.imageCtrl.SetBitmap(imgBit)
-        label = "Image: {}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.frame, self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
+        label = "Row:{:04d}   Image: {}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.rowNumber, self.frame, self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
         self.imageLabel.SetLabel(label)
         self.Refresh()
         pub.sendMessage(topicName="resize", msg="")
@@ -116,6 +119,7 @@ class ViewerPanel(wx.Panel):
         Loads the next picture in the directory
         """
         self.csvwriter.writerow(self.line)
+        self.rowNumber += 1
 
         self.line = next(self.csvreader)
         self.setImageParameters(self.line)
@@ -139,8 +143,10 @@ class ViewerPanel(wx.Panel):
         self.csvreader = csv.DictReader(self.csvFile, fieldnames=self.csvFields)
         self.csvwriter = csv.DictWriter(self.tempCsvFile, fieldnames=self.csvFields)
 
-        self.line = next(self.csvreader)
-        self.csvwriter.writerow(self.line)
+        for x in range(0,self.startingRow):
+            self.line = next(self.csvreader)
+            self.csvwriter.writerow(self.line)
+            self.rowNumber += 1
 
         self.line = next(self.csvreader)
         self.setImageParameters(self.line)

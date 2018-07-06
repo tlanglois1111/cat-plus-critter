@@ -248,21 +248,22 @@ def catcritter_infinite_infer_run():
                         ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]
                         ssd_image_list.append(ssd_image_desc)
 
+                    if obj['label'] < 20:
+                        # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
+                        # for more information about the cv2.rectangle method.
+                        # Method signature: image, point1, point2, color, and tickness.
+                        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
+                        # Amount to offset the label/probability text above the bounding box.
+                        text_offset = 15
+                        # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
+                        # for more information about the cv2.putText method.
+                        # Method signature: image, text, origin, font face, font scale, color,
+                        # and tickness
+                        cv2.putText(frame, "{}: {:.2f}%".format(output_map[obj['label']],
+                                                                obj['prob'] * 100),
+                                    (xmin, ymin-text_offset),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 165, 20), 6)
 
-                    # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
-                    # for more information about the cv2.rectangle method.
-                    # Method signature: image, point1, point2, color, and tickness.
-                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
-                    # Amount to offset the label/probability text above the bounding box.
-                    text_offset = 15
-                    # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
-                    # for more information about the cv2.putText method.
-                    # Method signature: image, text, origin, font face, font scale, color,
-                    # and tickness
-                    cv2.putText(frame, "{}: {:.2f}%".format(output_map[obj['label']],
-                                                            obj['prob'] * 100),
-                                (xmin, ymin-text_offset),
-                                cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 165, 20), 6)
             # Set the next frame in the local display stream.
             local_display.set_frame_data(frame)
 

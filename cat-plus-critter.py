@@ -180,7 +180,7 @@ def catcritter_infinite_infer_run():
                         ymin = 0
 
                     # if we found a cat, then save the image to a file and publish to IOT
-                    if obj['label'] == 8 or obj['label'] == 15:
+                    if obj['label'] == 8 or obj['label'] == 12 or obj['label'] == 15:
                         # save the ssd image
                         if not image_saved:
                             frame_filename = "{}_{:03d}_{}_{:03d}".format(today, ssd_counter, 'cats', irand)
@@ -245,7 +245,7 @@ def catcritter_infinite_infer_run():
                             counter += 1
 
                         # create ssd entry
-                        ssd_image_desc = [frame_filename, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]
+                        ssd_image_desc = [frame_filename+".jpg", int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]
                         ssd_image_list.append(ssd_image_desc)
 
                     if obj['label'] < 20:

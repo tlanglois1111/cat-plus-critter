@@ -1,10 +1,11 @@
 
-import os
 import wx
 from wx.lib.pubsub import pub
 import csv
 import shutil
 from tempfile import NamedTemporaryFile
+import numpy as np
+import random
 
 ########################################################################
 class ViewerPanel(wx.Panel):
@@ -13,6 +14,8 @@ class ViewerPanel(wx.Panel):
     #----------------------------------------------------------------------
     def __init__(self, parent):
         """Constructor"""
+        random.seed(222)
+
         wx.Panel.__init__(self, parent)
         
         width, height = wx.DisplaySize()
@@ -21,10 +24,14 @@ class ViewerPanel(wx.Panel):
         self.class_labels_rev = {'background': 0, 'buddy':1, 'jade':2, 'lucy':3, 'tim':4}
 
         self.csvFields = ['frame','xmin','xmax','ymin','ymax','class_id']
-        self.tempCsvFile = NamedTemporaryFile(mode='w', delete=False, newline='')
 
-        self.startingRow = 0
+        self.startingRow = 1499
+#        self.startingRow = 1
         self.rowNumber = 0
+
+        self.stratified = True
+        self.csvRows = []
+        self.percentVal = 0.25
 
         # 20180706_215_cats_807,138,231,94,194,1
         self.frame = ''
@@ -37,7 +44,9 @@ class ViewerPanel(wx.Panel):
 
         self.currentPicture = 0
         self.totalPictures = 0
-        self.photoMaxSize = 300
+        #self.photoMaxSize = 300
+        self.photoMaxSize = height - 200
+
         pub.subscribe(self.loadTrainingCSV, ("update images"))
 
         self.slideTimer = wx.Timer(None)
@@ -61,9 +70,11 @@ class ViewerPanel(wx.Panel):
         self.imageLabel = wx.StaticText(self, label="")
         self.mainSizer.Add(self.imageLabel, 0, wx.ALL|wx.CENTER, 5)
 
-        btnData = [("Next", btnSizer, self.onNext),
-                   ("Update CSV", btnSizer, self.onUpdateCSV),
-                   ("Done", btnSizer, self.onDone)]
+        btnData = [("Previous", btnSizer, self.onPrevious),
+                   ("Next", btnSizer, self.onNext),
+                   ("Update Class", btnSizer, self.onUpdateCSV),
+                   ("Save", btnSizer, self.onDone),
+                   ("Validate", btnSizer, self.onValidate)]
         for data in btnData:
             label, sizer, handler = data
             self.btnBuilder(label, sizer, handler)
@@ -96,19 +107,22 @@ class ViewerPanel(wx.Panel):
             NewW = self.photoMaxSize * W / H
         img = img.Scale(NewW,NewH)
 
+        xscale = NewW/W
+        yscale = NewH/H
+
         imgBit = wx.BitmapFromImage(img)
         dc = wx.MemoryDC(imgBit)
         dc.SetPen(wx.Pen(wx.RED, 1))
         text = self.class_labels[self.classification]
         tw, th = dc.GetTextExtent(text)
         dc.SetTextForeground(wx.RED)
-        dc.DrawText(text, (self.xmax-tw), (self.ymax-th))
+        dc.DrawText(text, (self.xmax-tw)*xscale, (self.ymax-th)*yscale)
         dc.SetBrush(wx.Brush(wx.RED, wx.TRANSPARENT)) #set brush transparent for non-filled rectangle
-        dc.DrawRectangle(self.xmin,self.ymin,self.xmax-self.xmin,self.ymax-self.ymin)
+        dc.DrawRectangle(self.xmin*xscale,self.ymin*yscale,(self.xmax-self.xmin)*xscale,(self.ymax-self.ymin)*yscale)
         dc.SelectObject(wx.NullBitmap)
 
         self.imageCtrl.SetBitmap(imgBit)
-        label = "Row:{:04d}   Image: {}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.rowNumber, self.frame, self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
+        label = "Row:{:04d}   Image: {}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.rowNumber+1, self.frame, self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
         self.imageLabel.SetLabel(label)
         self.Refresh()
         pub.sendMessage(topicName="resize", msg="")
@@ -118,10 +132,23 @@ class ViewerPanel(wx.Panel):
         """
         Loads the next picture in the directory
         """
-        self.csvwriter.writerow(self.line)
-        self.rowNumber += 1
+        if (self.rowNumber < (len(self.csvRows)-1)):
+            self.rowNumber += 1
 
-        self.line = next(self.csvreader)
+        self.line = self.csvRows[self.rowNumber]
+        self.setImageParameters(self.line)
+        self.currentImage = self.imagePath + '\\' + self.frame
+
+        self.loadImage(self.currentImage)
+
+    def previousPicture(self):
+        """
+        Loads the next picture in the directory
+        """
+        if (self.rowNumber > 0):
+            self.rowNumber -= 1
+
+        self.line = self.csvRows[self.rowNumber]
         self.setImageParameters(self.line)
         self.currentImage = self.imagePath + '\\' + self.frame
 
@@ -138,8 +165,13 @@ class ViewerPanel(wx.Panel):
     #----------------------------------------------------------------------
     def loadTrainingCSV(self, msg):
         self.imagePath = msg;
-        self.csvFile = open(self.imagePath+'\\train.csv', 'r')
+        self.trainFilename = self.imagePath+'\\train.csv'
 
+        with open(self.trainFilename, 'r') as csvfile:
+            reader = csv.DictReader(csvfile, fieldnames=self.csvFields)
+            self.csvRows = list(reader)
+
+        """
         self.csvreader = csv.DictReader(self.csvFile, fieldnames=self.csvFields)
         self.csvwriter = csv.DictWriter(self.tempCsvFile, fieldnames=self.csvFields)
 
@@ -147,8 +179,11 @@ class ViewerPanel(wx.Panel):
             self.line = next(self.csvreader)
             self.csvwriter.writerow(self.line)
             self.rowNumber += 1
+        """
 
-        self.line = next(self.csvreader)
+        self.rowNumber = self.startingRow
+        self.line = self.csvRows[self.rowNumber]
+
         self.setImageParameters(self.line)
         self.currentImage = self.imagePath + '\\' + self.frame
         self.loadImage(self.currentImage)
@@ -170,6 +205,13 @@ class ViewerPanel(wx.Panel):
         self.nextPicture()
 
     #----------------------------------------------------------------------
+    def onPrevious(self, event):
+        """
+        Calls the previousPicture method
+        """
+        self.previousPicture()
+
+    #----------------------------------------------------------------------
     def onUpdateCSV(self, event):
         """
         Opens a DirDialog to allow the user to open a folder with pictures
@@ -184,15 +226,65 @@ class ViewerPanel(wx.Panel):
             self.loadImage(self.currentImage)
 
     def onDone(self, event):
-        self.csvwriter.writerow(self.line)
-        for row in self.csvreader:
-            self.csvwriter.writerow(row)
-        self.csvFile.close()
-        self.tempCsvFile.close()
+        tempCsvFile = NamedTemporaryFile(mode='w', delete=False, newline='')
+        csvwriter = csv.DictWriter(tempCsvFile, fieldnames=self.csvFields)
 
-        shutil.move(self.tempCsvFile.name, self.csvFile.name)
+        for row in self.csvRows:
+            csvwriter.writerow(row)
+        tempCsvFile.close()
 
-        quit()
+        shutil.move(tempCsvFile.name, self.trainFilename)
+
+        #quit()
+
+    def onValidate(self, event):
+        self.train()
+
+    def train(self):
+        img_lst = []
+        for row in self.csvRows:
+            if row[self.csvFields[5]] != 'class_id' and int(row[self.csvFields[5]]) > 0:
+                img_lst.append((row[self.csvFields[0]],row[self.csvFields[1]],row[self.csvFields[2]],row[self.csvFields[3]],row[self.csvFields[4]],row[self.csvFields[5]]))
+
+        random.shuffle(img_lst)
+        img_lst=np.array(img_lst)
+
+        """
+        if self.stratified:
+            #from sklearn.model_selection import StratifiedShuffleSplit
+            from sklearn.model_selection import train_test_split
+
+            ## Stratified sampling to generate train and validation sets
+            labels_train=img_lst[:,5]
+            # unique_train, counts_train = np.unique(labels_train, return_counts=True) # To have a look at the frecuency distribution
+            #sss = StratifiedShuffleSplit(train_size=1-self.percentVal, test_size=self.percentVal, random_state=0)
+            sss = train_test_split(labels_train, 1, test_size=self.percentVal)
+
+            for tr_idx, va_idx in sss:
+                print("Train subset has ", len(tr_idx), " cases. Validation subset has ", len(va_idx), "cases")
+        else:
+        """
+        (nRows, nCols) = img_lst.shape
+        splitat=int(round(nRows*(1-self.percentVal),0))
+        tr_idx=range(0,splitat)
+        va_idx=range(splitat,nRows)
+        print("Train subset has ", len(tr_idx), " cases. Validation subset has ", len(va_idx), "cases")
+
+        tr_lst=img_lst[tr_idx,:].tolist()
+        va_lst=img_lst[va_idx,:].tolist()
+
+        trainFile = open(self.imagePath+'\\training.csv', 'w', newline='')
+        csvTrainWriter = csv.writer(trainFile)
+        valildationFile = open(self.imagePath+'\\validation.csv', 'w', newline='')
+        csvValidationWriter = csv.writer(valildationFile)
+
+        csvTrainWriter.writerow(self.csvFields)
+        csvValidationWriter.writerow(self.csvFields)
+        for item in tr_lst:
+            csvTrainWriter.writerow(item)
+        for item in va_lst:
+            csvValidationWriter.writerow(item)
+
 
 ########################################################################
 class MyDialog(wx.Dialog):

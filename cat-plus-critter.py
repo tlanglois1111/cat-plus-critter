@@ -70,6 +70,8 @@ def catcritter_infinite_infer_run():
         # captured ssd image info for training
         ssd_image_list = [];
 
+        capture_class_images = False
+
         class_labels = {0: 'background', 1: 'buddy', 2: 'jade', 3: 'lucy', 4: 'tim'}
 
         # This object detection model is implemented as single shot detector (ssd), since
@@ -203,10 +205,11 @@ def catcritter_infinite_infer_run():
                         if first['prob'] > detection_threshold:
                             #client.publish(topic=iot_topic, payload='found {}, saving file'.format(labels[first['label']]))
 
-                            dir = "/tmp/cats/train/" + frame_filename
-                            if not os.path.isdir(dir):
-                                os.mkdir(dir)
-                                os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+                            if capture_class_images:
+                                dir = "/tmp/cats/train/" + frame_filename
+                                if not os.path.isdir(dir):
+                                    os.mkdir(dir)
+                                    os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
                             the_label = class_labels[first['label']]
                             the_class = first['label']
@@ -216,9 +219,11 @@ def catcritter_infinite_infer_run():
                                 the_class = 3
 
                             path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
-                            cv2.imwrite(path, crop)
-                            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
-                            counter += 1
+
+                            if capture_class_images:
+                                cv2.imwrite(path, crop)
+                                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                                counter += 1
 
                             msg = '{'
                             prob_num = 0
@@ -240,9 +245,11 @@ def catcritter_infinite_infer_run():
                             the_label = class_labels[the_class]
 
                             path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, counter, the_label, irand, int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])))
-                            cv2.imwrite(path, crop)
-                            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
-                            counter += 1
+
+                            if capture_class_images:
+                                cv2.imwrite(path, crop)
+                                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                                counter += 1
 
                         # create ssd entry
                         ssd_image_desc = [frame_filename+".jpg", int(round(obj['xmin'])), int(round(obj['xmax'])), int(round(obj['ymin'])), int(round(obj['ymax'])), the_class]

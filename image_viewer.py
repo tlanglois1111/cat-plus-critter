@@ -25,7 +25,7 @@ class ViewerPanel(wx.Panel):
 
         self.csvFields = ['frame','xmin','xmax','ymin','ymax','class_id']
 
-        self.startingRow = 1499
+        self.startingRow = 1
 #        self.startingRow = 1
         self.rowNumber = 0
 
@@ -107,8 +107,13 @@ class ViewerPanel(wx.Panel):
             NewW = self.photoMaxSize * W / H
         img = img.Scale(NewW,NewH)
 
-        xscale = NewW/W
-        yscale = NewH/H
+        xscale = img.GetWidth()/W
+        yscale = img.GetHeight()/H
+
+        sxmin = int(xscale * self.xmin)
+        symin = int(yscale * self.ymin)
+        sxmax = int(xscale * self.xmax)
+        symax = int(yscale * self.ymax)
 
         imgBit = wx.BitmapFromImage(img)
         dc = wx.MemoryDC(imgBit)
@@ -116,13 +121,13 @@ class ViewerPanel(wx.Panel):
         text = self.class_labels[self.classification]
         tw, th = dc.GetTextExtent(text)
         dc.SetTextForeground(wx.RED)
-        dc.DrawText(text, (self.xmax-tw)*xscale, (self.ymax-th)*yscale)
+        dc.DrawText(text, sxmax-((sxmax-sxmin)/2)-tw, symax-th)
         dc.SetBrush(wx.Brush(wx.RED, wx.TRANSPARENT)) #set brush transparent for non-filled rectangle
-        dc.DrawRectangle(self.xmin*xscale,self.ymin*yscale,(self.xmax-self.xmin)*xscale,(self.ymax-self.ymin)*yscale)
+        dc.DrawRectangle(sxmin,symin,sxmax-sxmin,symax-symin)
         dc.SelectObject(wx.NullBitmap)
 
         self.imageCtrl.SetBitmap(imgBit)
-        label = "Row:{:04d}   Image: {}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.rowNumber+1, self.frame, self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
+        label = "Row:{:04d}   Image: {}{:03d}x{:03d}   xmin:{:03d}   xmax:{:03d}   ymin:{:03d}   ymax:{:03d}   class: {}".format(self.rowNumber+1, self.frame, W,H,self.xmin, self.xmax, self.ymin, self.ymax, self.class_labels[self.classification])
         self.imageLabel.SetLabel(label)
         self.Refresh()
         pub.sendMessage(topicName="resize", msg="")
@@ -165,7 +170,7 @@ class ViewerPanel(wx.Panel):
     #----------------------------------------------------------------------
     def loadTrainingCSV(self, msg):
         self.imagePath = msg;
-        self.trainFilename = self.imagePath+'\\train.csv'
+        self.trainFilename = self.imagePath+'\\train2.csv'
 
         with open(self.trainFilename, 'r') as csvfile:
             reader = csv.DictReader(csvfile, fieldnames=self.csvFields)
